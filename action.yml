@@ -1,0 +1,28 @@
+name: 'Simple Conventional Commits Check'
+description: 'Check that all pull request commits are following conventional commits'
+branding:
+  icon: 'git-pull-request'
+  color: 'red'
+inputs:
+  target-branch:
+    description: 'target branch'
+    required: true
+    default: 'main'
+  current-branch:
+    description: 'current branch'
+    required: true
+    default: 'main'
+  pattern:
+    description: 'custom regex to check conventional commits'
+    required: false
+    default: ''
+outputs:
+  commit-checker:
+    description: 'Successful result true or false'
+    value: ${{ steps.ccc.outputs.commit-checker }}
+runs:
+  using: "composite"
+  steps:
+    - run: ${GITHUB_ACTION_PATH}/conventional-commits-check.sh ${{ inputs.target-branch }} ${{ inputs.current-branch }}
+      shell: bash
+      id: ccc
