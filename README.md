@@ -12,6 +12,8 @@ jobs:
   conventional-commits-check:
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Conventional Commits Checker
       uses: davidglezz/action-conventional-commits-check@v1.0.0
