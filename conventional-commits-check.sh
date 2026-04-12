@@ -2,9 +2,6 @@
 
 set -e
 
-# make newlines the only separator
-IFS=$'\n' 
-
 git config --global --add safe.directory /github/workspace
 
 target_branch="${1:-}"
@@ -62,7 +59,7 @@ if ! git rev-parse --verify --quiet "$current_ref" >/dev/null; then
   exit 1
 fi
 
-commits=($(git log --pretty="%s" "$current_ref" "^$target_ref"))
+mapfile -t commits < <(git log --pretty="%s" "$target_ref..$current_ref")
 
 pattern=""
 if [ -z "${custom_pattern}" ]; then
@@ -84,10 +81,10 @@ for commit in "${commits[@]}"; do
   fi
 done
 
-if [ $all_commits_ok == "true" ]; then
-  echo "commit-checker=true" >> $GITHUB_OUTPUT
+if [[ "$all_commits_ok" == "true" ]]; then
+  echo "commit-checker=true" >> "$GITHUB_OUTPUT"
   exit 0
 else
-  echo "commit-checker=false" >> $GITHUB_OUTPUT
+  echo "commit-checker=false" >> "$GITHUB_OUTPUT"
   exit 1
 fi
