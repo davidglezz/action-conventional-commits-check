@@ -12,8 +12,6 @@ jobs:
   conventional-commits-check:
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Conventional Commits Checker
       uses: davidglezz/action-conventional-commits-check@v1.0.0
@@ -21,6 +19,8 @@ jobs:
           target-branch: ${{ github.event.pull_request.base.ref }}
           current-branch: ${{ github.event.pull_request.head.ref }}
 ```
+
+Checkout with `fetch-depth: 0` is not required. This action automatically fetches the two configured branches (`target-branch` and `current-branch`) before validating commit messages.
 
 ## Related projects
 - https://github.com/netodevel/conventional-commits-checker/
