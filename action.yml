@@ -23,6 +23,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - run: ${GITHUB_ACTION_PATH}/conventional-commits-check.sh ${{ inputs.target-branch }} ${{ inputs.current-branch }}
+    - run: ${GITHUB_ACTION_PATH}/conventional-commits-check.sh "${{ inputs.target-branch }}" "${{ inputs.current-branch }}"
       shell: bash
       id: ccc
