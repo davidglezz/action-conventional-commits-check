@@ -7,19 +7,50 @@ IFS=$'\n'
 
 git config --global --add safe.directory /github/workspace
 
-echo "Checking conventional commits between $2 and $1"
+target_branch="${1:-}"
+current_branch="${2:-}"
+
+if [ -z "$target_branch" ]; then
+  target_branch="${GITHUB_BASE_REF:-}"
+fi
+
+if [ -z "$current_branch" ]; then
+  if [ -n "${GITHUB_HEAD_REF:-}" ]; then
+    current_branch="${GITHUB_HEAD_REF}"
+  else
+    current_branch="${GITHUB_REF_NAME:-}"
+  fi
+fi
+
+if [ -z "$target_branch" ] || [ -z "$current_branch" ]; then
+  echo "Could not determine target/current branch. Set action inputs or run in a pull_request context."
+  exit 1
+fi
+
+echo "Checking conventional commits between $current_branch and $target_branch"
 
 custom_pattern="${INPUT_PATTERN}"
 merge_commit_regex="^Merge (branch|pull request|remote-tracking branch) .*"
 
-# Get all commit messages from the feature branch that are not in the main branch
-target_ref="refs/remotes/origin/$1"
-current_ref="refs/remotes/origin/$2"
+# Get all commit messages from the feature branch that are not in the main branch.
+# For pull_request workflows, prefer refs/pull/<number>/head as it works with forks
+# and avoids edge cases with branch names.
+target_ref="refs/remotes/origin/$target_branch"
+current_ref="refs/remotes/origin/$current_branch"
 
-# Ensure both refs exist locally even when checkout does a shallow/single-ref fetch.
-git fetch --no-tags origin \
-  "refs/heads/$1:$target_ref" \
-  "refs/heads/$2:$current_ref"
+if [[ "${GITHUB_REF:-}" =~ ^refs/pull/([0-9]+)/ ]]; then
+  pr_number="${BASH_REMATCH[1]}"
+  current_ref="refs/remotes/origin/pull/$pr_number/head"
+
+  git fetch --no-tags origin \
+    "refs/heads/$target_branch:$target_ref" \
+    "refs/pull/$pr_number/head:$current_ref"
+else
+  # Fallback for non-pull_request workflows.
+  git fetch --no-tags origin \
+    "refs/heads/$target_branch:$target_ref" \
+    "refs/heads/$current_branch:$current_ref"
+fi
 
 if ! git rev-parse --verify --quiet "$target_ref" >/dev/null; then
   echo "Could not resolve target branch ref: $target_ref"
