@@ -2,24 +2,34 @@
 
 set -e
 
-# make newlines the only separator
-IFS=$'\n' 
+default_pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\([[:alnum:]._-]+\))?(!)?: ([[:alnum:]])+([[:space:][:print:]]*)$"
+pattern="${INPUT_PATTERN:-$default_pattern}"
+merge_commit_regex="^Merge (branch|pull request|remote-tracking branch) .*"
+target_branch="${1:-${GITHUB_BASE_REF:-}}"
+current_branch="${2:-${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}}"
+
+if [ -z "$target_branch" ] || [ -z "$current_branch" ]; then
+  echo "Could not determine target/current branch. Set action inputs or run in a pull_request context."
+  exit 1
+fi
+
+echo "Checking conventional commits between $current_branch and $target_branch"
+[ -n "${INPUT_PATTERN}" ] && echo "Using custom pattern: ${INPUT_PATTERN}"
+
+target_ref="refs/remotes/origin/$target_branch"
+current_ref="refs/remotes/origin/$current_branch"
+current_fetch_ref="refs/heads/$current_branch"
+
+# In pull_request workflows, use refs/pull/<number>/head because the source branch
+# may live in a fork and not exist under origin/heads.
+if [[ "${GITHUB_REF:-}" =~ ^refs/pull/([0-9]+)/ ]]; then
+  pr_number="${BASH_REMATCH[1]}"
+  current_ref="refs/remotes/origin/pull/$pr_number/head"
+  current_fetch_ref="refs/pull/$pr_number/head"
+fi
 
 git config --global --add safe.directory /github/workspace
-
-echo "Checking conventional commits between $2 and $1"
-
-custom_pattern="${INPUT_PATTERN}"
-merge_commit_regex="^Merge (branch|pull request|remote-tracking branch) .*"
-
-# Get all commit messages from the feature branch that are not in the main branch
-target_ref="refs/remotes/origin/$1"
-current_ref="refs/remotes/origin/$2"
-
-# Ensure both refs exist locally even when checkout does a shallow/single-ref fetch.
-git fetch --no-tags origin \
-  "refs/heads/$1:$target_ref" \
-  "refs/heads/$2:$current_ref"
+git fetch --no-tags origin "refs/heads/$target_branch:$target_ref" "$current_fetch_ref:$current_ref"
 
 if ! git rev-parse --verify --quiet "$target_ref" >/dev/null; then
   echo "Could not resolve target branch ref: $target_ref"
@@ -31,15 +41,8 @@ if ! git rev-parse --verify --quiet "$current_ref" >/dev/null; then
   exit 1
 fi
 
-commits=($(git log --pretty="%s" "$current_ref" "^$target_ref"))
-
-pattern=""
-if [ -z "${custom_pattern}" ]; then
-  pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\([[:alnum:]._-]+\))?(!)?: ([[:alnum:]])+([[:space:][:print:]]*)$"
-else
-  echo "Using custom pattern: ${custom_pattern}"
-  pattern="${custom_pattern}"
-fi
+# Get all commit messages from the feature branch that are not in the main branch.
+mapfile -t commits < <(git log --pretty="%s" "$target_ref..$current_ref")
 
 all_commits_ok="true"
 for commit in "${commits[@]}"; do
@@ -53,10 +56,10 @@ for commit in "${commits[@]}"; do
   fi
 done
 
-if [ $all_commits_ok == "true" ]; then
-  echo "commit-checker=true" >> $GITHUB_OUTPUT
+if [[ "$all_commits_ok" == "true" ]]; then
+  echo "commit-checker=true" >> "$GITHUB_OUTPUT"
   exit 0
 else
-  echo "commit-checker=false" >> $GITHUB_OUTPUT
+  echo "commit-checker=false" >> "$GITHUB_OUTPUT"
   exit 1
 fi
